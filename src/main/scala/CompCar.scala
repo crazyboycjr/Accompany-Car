@@ -14,7 +14,7 @@ object CompCar {
     if (args.size != 1)
       printf("Usage: app [URI]\n")
     val inputFile = args(0)
-    val textFile = sc.textFile(inputFile, 5).cache()
+    val textFile = sc.textFile(inputFile, 200).cache()
     val sp: Long = 1420056000 - 86400
     val res = textFile.map(line => {
       val Array(car_s, xr_s, ts_s) = line.split(",")
@@ -24,7 +24,7 @@ object CompCar {
       val arr = new ArrayBuffer[(Int, Long)](1)
       arr.append((car, ts))
       ((part, xr), arr)
-    }).reduceByKey(_ ++ _)
+    }).reduceByKey(_ ++ _, numPartitions = 200)
 
     res.flatMap(tup => {
       val ((part, xr), arr) = tup
@@ -49,9 +49,9 @@ object CompCar {
       })
       ret
     }).map(word => (word, 1))
-      .reduceByKey(_ + _)
+      .reduceByKey(_ + _, numPartitions = 200)
       .filter(v => v._2 >= 50)
-      .sortBy(v => (-v._2, v._1._1, v._1._2, v._1._3))
+      .sortBy(v => (-v._2, v._1._1, v._1._2, v._1._3), numPartitions = 200)
       .collect()
       .foreach(println)
   }
