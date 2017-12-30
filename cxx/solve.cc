@@ -2,12 +2,21 @@
 #include <cstdio>
 #include <cassert>
 
-#include <list>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/io.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+
+#include <chrono>
 #include <vector>
+#include <iostream>
 #include <algorithm>
 #include <utility>
 #include <thread>
 #include <unordered_map>
+#include <forward_list>
 
 #define MAX_PROCS 8
 
@@ -20,21 +29,18 @@ const int kTotalTime = 86400 * 1;
 const int kTotalTime = 86400 * 31;
 #endif
 
+const int kTotalLine = 275893209;
 const int kMaxCar = 23182818;
 const int kStartTime = 1419969600;
 #define TIME(x) ((x) - kStartTime)
 
 struct Record {
     int car, xr, ts;
-};
+} __attribute__((packed));
 
-std::vector<Record> records;
+static Record records[kTotalLine];
 
-/* 
- * vector has an extra overhead, so we use list
- * TODO try implement list by hand
- */
-std::list<int> inverted_index[1000][kTotalTime];
+std::forward_list<int> inverted_index[1000][kTotalTime];
 
 std::unordered_map<long long, int> compcar;
 
@@ -48,22 +54,36 @@ inline std::pair<int, int> decode(long long x) {
 
 void readData(const char *file)
 {
-    int car, xr, ts, max_xr = -1;
-    FILE *fp = fopen(file, "r");
-    assert(fp);
+    int max_xr = -1;
+    std::cerr << "Start" << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
 
-    /* read can be speed up further */
-    for (size_t i = 0; ~fscanf(fp, "%d,%d,%d", &car, &xr, &ts); i++) {
-        if (max_xr < xr)
-            max_xr = xr;
-        if ((i & 0xffff) == 0)
-            fprintf(stderr, "i = %ld\n", i);
+    char *pa;
+    struct stat st;
+    int fd = open(file, O_RDONLY);
+    assert(fstat(fd, &st) == 0);
 
-        inverted_index[xr][TIME(ts)].push_back(car);
-        records.push_back((Record){car, xr, ts});
+    pa = (char *)mmap(0, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    int *data = (int *)records;
+    for (char *t = pa; t < pa + st.st_size; t++) {
+        if ('0' <= *t && *t <= '9')
+            *data = *data * 10 + *t - '0';
+        else
+            data++;
     }
 
-    fclose(fp);
+    for (size_t i = 0; i < kTotalLine; i++) {
+        if (max_xr < records[i].xr)
+            max_xr = records[i].xr;
+        inverted_index[records[i].xr][TIME(records[i].ts)].push_front(records[i].car);
+    }
+
+    std::cerr << "max_xr = " << max_xr << std::endl;
+    munmap(pa, st.st_size);
+    close(fd);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cerr << "Time cost: " << (end - start).count() / 1e9 << std::endl;
 }
 
 void merge(int car, std::unordered_map<int, int> &temp_counter)
@@ -82,7 +102,7 @@ void merge(int car, std::unordered_map<int, int> &temp_counter)
 
 void solve()
 {
-    size_t num_rec = records.size();
+    size_t num_rec = kTotalLine;
     int car, xr, last_car = -1;
     int l, r;
     std::unordered_map<int, int> temp_counter;
@@ -99,13 +119,15 @@ void solve()
                 records[j].ts <= records[j - 1].ts + TIME_SPAN; j++);
 
         l = TIME(records[i].ts);
-        r = TIME(records[j - 1].ts) + TIME_SPAN;
+        r = std::min(TIME(records[j - 1].ts) + TIME_SPAN, kTotalTime);
 
+        int cnt = 0;
         for (int k = l; k < r; k++) {
             auto &car_list = inverted_index[xr][k];
             for (const auto &e : car_list) {
                 if (car == e)
                     continue;
+                cnt++;
                 temp_counter[e]++;
             }
         }
