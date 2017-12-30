@@ -57,7 +57,6 @@ inline std::pair<int, int> decode(long long x) {
 
 void readData(const char *file)
 {
-    int max_xr = -1;
     std::cerr << "Start" << std::endl;
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -75,24 +74,6 @@ void readData(const char *file)
             data++;
     }
 
-    for (size_t i = 0; i < kTotalLine; i++) {
-        if (max_xr < records[i].xr)
-            max_xr = records[i].xr;
-        count_car[records[i].car]++;
-    }
-
-    for (size_t i = 0; i < kTotalLine; i++) {
-        int car = records[i].car;
-        if (count_car[car] >= THRESHOLD) {
-            if (new_car_id[car] == 0) {
-                old_car_id[new_car_counter] = car;
-                new_car_id[car] = ++new_car_counter;
-            }
-            inverted_index[records[i].xr][TIME(records[i].ts)].push_front(new_car_id[car] - 1);
-        }
-    }
-
-    std::cerr << "max_xr = " << max_xr << std::endl;
     munmap(pa, st.st_size);
     close(fd);
 
@@ -100,13 +81,56 @@ void readData(const char *file)
     std::cerr << "Time cost: " << (end - start).count() / 1e9 << std::endl;
 }
 
+void init()
+{
+    int max_xr = -1;
+    Record *i, *j;
+
+    for (i = records; i < records + kTotalLine; i++) {
+        if (max_xr < i->xr)
+            max_xr = i->xr;
+        count_car[i->car]++;
+    }
+
+    int car, xr;
+    for (i = records; i  < records + kTotalLine; i = j) {
+        car = i->car;
+        xr = i->xr;
+        if (count_car[car] < THRESHOLD || count_car[car] > 10000) {
+            j = i + 1;
+            continue;
+        }
+        for (j = i + 1; j < records + kTotalLine &&
+                j->car == car &&
+                j->xr == xr &&
+                j->ts <= (j - 1)->ts + TIME_SPAN; j++);
+
+        if (new_car_id[car] == 0) {
+            old_car_id[new_car_counter] = car;
+            new_car_id[car] = ++new_car_counter;
+        }
+
+        inverted_index[i->xr][TIME(i->ts)].push_front(new_car_id[car] - 1);
+        if (j != i + 1) {
+            inverted_index[i->xr][TIME((j - 1)->ts)]
+                .push_front(new_car_id[car] - 1);
+            for (int ts = TIME(i->ts) + TIME_SPAN;
+                     ts < TIME((j - 1)->ts);
+                     ts += TIME_SPAN)
+                inverted_index[i->xr][ts].push_front(new_car_id[car] - 1);
+        }
+    }
+
+    std::cerr << "max_xr = " << max_xr << std::endl;
+}
+
 static int top = 0, stack[80000], temp_counter[80000];
 
 void merge(int car)
 {
-    while (top > 0) {
+    while (top) {
         int j = stack[top--], cary = old_car_id[j];
-        if (temp_counter[j] >= THRESHOLD / 2) {
+        if (temp_counter[j] >= THRESHOLD) {
             if (car < cary)
                 compcar[encode(car, cary)] += temp_counter[j];
             else
@@ -137,10 +161,10 @@ void solve()
     int l, r;
     //std::unordered_map<int, int> temp_counter;
 
-    for (size_t i = 0, j; i < num_rec; i = j, last_car = car) {
-        car = records[i].car;
-        xr = records[i].xr;
-        if (count_car[car] < THRESHOLD) {
+    for (Record *i = records, *j; i < records + num_rec; i = j) {
+        car = i->car;
+        xr = i->xr;
+        if (count_car[car] < THRESHOLD || count_car[car] > 10000) {
             j = i + 1;
             continue;
         }
@@ -148,23 +172,25 @@ void solve()
             merge(last_car);
             //merge(last_car, temp_counter);
 
-        for (j = i + 1; j < num_rec &&
-                records[j].car == car &&
-                records[j].xr == xr &&
-                records[j].ts <= records[j - 1].ts + TIME_SPAN; j++);
+        for (j = i + 1; j < records + num_rec &&
+                        j->car == car &&
+                        j->xr == xr &&
+                        j->ts <= (j - 1)->ts + TIME_SPAN; j++);
 
-        l = TIME(records[i].ts);
-        r = std::min(TIME(records[j - 1].ts) + TIME_SPAN, kTotalTime);
+        l = std::max(TIME(i->ts) - TIME_SPAN, 0);
+        r = std::min(TIME((j - 1)->ts) + TIME_SPAN, kTotalTime);
 
         for (int k = l; k < r; k++) {
             auto &car_list = inverted_index[xr][k];
             for (const auto &e : car_list) {
-                if (car == e)
+                if (new_car_id[car] - 1 >= e)
                     continue;
                 if (temp_counter[e]++ == 0)
                     stack[++top] = e;
             }
         }
+
+        last_car = car;
 
         if ((car & 0xff) == 0)
             fprintf(stderr, "car = %d\n", car);
@@ -193,6 +219,7 @@ int main(int argc, char *argv[])
     }
 
     readData(argv[1]);
+    init();
     solve();
     writeResult();
     return 0;
