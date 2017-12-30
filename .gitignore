@@ -4,3 +4,4 @@ spark-warehouse/
 target/
 
 *~
+cxx/solve
