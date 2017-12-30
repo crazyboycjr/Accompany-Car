@@ -20,7 +20,7 @@
 
 #define MAX_PROCS 8
 
-#define THRESHOLD 300 / 2
+#define THRESHOLD 300
 #define TIME_SPAN 180 //3min
 
 #ifdef DEBUG
@@ -41,6 +41,9 @@ struct Record {
 static Record records[kTotalLine];
 
 std::forward_list<int> inverted_index[1000][kTotalTime];
+
+static int count_car[kMaxCar];
+static int new_car_counter, new_car_id[kMaxCar], old_car_id[80000];
 
 std::unordered_map<long long, int> compcar;
 
@@ -75,7 +78,18 @@ void readData(const char *file)
     for (size_t i = 0; i < kTotalLine; i++) {
         if (max_xr < records[i].xr)
             max_xr = records[i].xr;
-        inverted_index[records[i].xr][TIME(records[i].ts)].push_front(records[i].car);
+        count_car[records[i].car]++;
+    }
+
+    for (size_t i = 0; i < kTotalLine; i++) {
+        int car = records[i].car;
+        if (count_car[car] >= THRESHOLD) {
+            if (new_car_id[car] == 0) {
+                old_car_id[new_car_counter] = car;
+                new_car_id[car] = ++new_car_counter;
+            }
+            inverted_index[records[i].xr][TIME(records[i].ts)].push_front(new_car_id[car] - 1);
+        }
     }
 
     std::cerr << "max_xr = " << max_xr << std::endl;
@@ -89,12 +103,12 @@ void readData(const char *file)
 void merge(int car, std::unordered_map<int, int> &temp_counter)
 {
     for (const auto &e : temp_counter) {
-        if (e.second < THRESHOLD)
+        if (e.second < THRESHOLD / 2)
             continue;
         if (e.first < car)
-            compcar[encode(e.first, car)] += e.second;
+            compcar[encode(old_car_id[e.first], car)] += e.second;
         else
-            compcar[encode(car, e.first)] += e.second;
+            compcar[encode(car, old_car_id[e.first])] += e.second;
     }
 
     temp_counter.clear();
@@ -110,6 +124,10 @@ void solve()
     for (size_t i = 0, j; i < num_rec; i = j, last_car = car) {
         car = records[i].car;
         xr = records[i].xr;
+        if (count_car[car] < THRESHOLD) {
+            j = i + 1;
+            continue;
+        }
         if (car != last_car && last_car >= 0)
             merge(last_car, temp_counter);
 
@@ -132,7 +150,7 @@ void solve()
             }
         }
 
-        if ((car & 0xf) == 0)
+        if ((car & 0xff) == 0)
             fprintf(stderr, "car = %d\n", car);
     }
 
