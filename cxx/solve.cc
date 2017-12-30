@@ -100,12 +100,28 @@ void readData(const char *file)
     std::cerr << "Time cost: " << (end - start).count() / 1e9 << std::endl;
 }
 
-void merge(int car, std::unordered_map<int, int> &temp_counter)
+static int top = 0, stack[80000], temp_counter[80000];
+
+void merge(int car)
+{
+    while (top > 0) {
+        int j = stack[top--], cary = old_car_id[j];
+        if (temp_counter[j] >= THRESHOLD / 2) {
+            if (car < cary)
+                compcar[encode(car, cary)] += temp_counter[j];
+            else
+                compcar[encode(cary, car)] += temp_counter[j];
+        }
+        temp_counter[j] = 0;
+    }
+}
+
+void merge2(int car, std::unordered_map<int, int> &temp_counter)
 {
     for (const auto &e : temp_counter) {
-        if (e.second < THRESHOLD / 2)
+        if (e.second < THRESHOLD / 2) // FIXME(cjr)
             continue;
-        if (e.first < car)
+        if (old_car_id[e.first] < car)
             compcar[encode(old_car_id[e.first], car)] += e.second;
         else
             compcar[encode(car, old_car_id[e.first])] += e.second;
@@ -119,7 +135,7 @@ void solve()
     size_t num_rec = kTotalLine;
     int car, xr, last_car = -1;
     int l, r;
-    std::unordered_map<int, int> temp_counter;
+    //std::unordered_map<int, int> temp_counter;
 
     for (size_t i = 0, j; i < num_rec; i = j, last_car = car) {
         car = records[i].car;
@@ -129,7 +145,8 @@ void solve()
             continue;
         }
         if (car != last_car && last_car >= 0)
-            merge(last_car, temp_counter);
+            merge(last_car);
+            //merge(last_car, temp_counter);
 
         for (j = i + 1; j < num_rec &&
                 records[j].car == car &&
@@ -139,14 +156,13 @@ void solve()
         l = TIME(records[i].ts);
         r = std::min(TIME(records[j - 1].ts) + TIME_SPAN, kTotalTime);
 
-        int cnt = 0;
         for (int k = l; k < r; k++) {
             auto &car_list = inverted_index[xr][k];
             for (const auto &e : car_list) {
                 if (car == e)
                     continue;
-                cnt++;
-                temp_counter[e]++;
+                if (temp_counter[e]++ == 0)
+                    stack[++top] = e;
             }
         }
 
@@ -155,7 +171,8 @@ void solve()
     }
 
     if (last_car >= 0)
-        merge(last_car, temp_counter);
+        merge(last_car);
+        //merge(last_car, temp_counter);
 }
 
 void writeResult()
