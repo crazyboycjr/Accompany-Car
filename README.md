@@ -91,4 +91,4 @@ _以上都是方法大致描述，具体实现细节还要进一步参见代码�
 4. 尝试spark-sql或者分布式关系型数据库如TiDB（我sql都写好了）
 
 ## Acknowledgement
-感谢[@LiYingwei](https://github.com/LiYingwei)的分布图，让我们对数据有整体的认知；感谢[@林老师](https://github.com/SpacelessL)在我实现和调试过程中不断和我讨论想法，以及富有启发意义的第一版单机版代码实现，感谢[@qwy]()一人单挑实现了Hadoop MapReduce的版本，并持续优化，丰富了我们的工作
+感谢[@LiYingwei](https://github.com/LiYingwei)的分布图，让我们对数据有整体的认知；感谢[@林老师](https://github.com/SpacelessL)在我实现和调试过程中不断和我讨论想法，以及富有启发意义的第一版单机版代码实现，感谢[@qwy](https://github.com/qianwenyuan)一人单挑实现了Hadoop MapReduce的版本，并持续优化，丰富了我们的工作
