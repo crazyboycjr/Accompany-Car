@@ -140,26 +140,11 @@ void merge(int car)
     }
 }
 
-void merge2(int car, std::unordered_map<int, int> &temp_counter)
-{
-    for (const auto &e : temp_counter) {
-        if (e.second < THRESHOLD / 2) // FIXME(cjr)
-            continue;
-        if (old_car_id[e.first] < car)
-            compcar[encode(old_car_id[e.first], car)] += e.second;
-        else
-            compcar[encode(car, old_car_id[e.first])] += e.second;
-    }
-
-    temp_counter.clear();
-}
-
 void solve()
 {
     size_t num_rec = kTotalLine;
     int car, xr, last_car = -1;
     int l, r;
-    //std::unordered_map<int, int> temp_counter;
 
     for (Record *i = records, *j; i < records + num_rec; i = j) {
         car = i->car;
@@ -170,7 +155,6 @@ void solve()
         }
         if (car != last_car && last_car >= 0)
             merge(last_car);
-            //merge(last_car, temp_counter);
 
         for (j = i + 1; j < records + num_rec &&
                         j->car == car &&
@@ -198,7 +182,6 @@ void solve()
 
     if (last_car >= 0)
         merge(last_car);
-        //merge(last_car, temp_counter);
 }
 
 void writeResult()
