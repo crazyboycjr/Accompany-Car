@@ -28,25 +28,27 @@ object CompCar {
 
     res.flatMap(tup => {
       val ((part, xr), arr) = tup
-      val offset = (part * 86400).toLong + sp
-      val carList = new Array[ArrayBuffer[Int]](86400)
-      for (i <- 0 until 86400)
-        carList(i) = new ArrayBuffer[Int]
-      arr.foreach(v => {
-        val (car, ts) = v
-        carList((ts - offset).toInt).append(car)
-      })
       val ret = new ArrayBuffer[(Int, Int, Int)]
-      arr.foreach(v => {
-        val (car, ts) = v
-        var start = (ts - offset).toInt
-        for (i <- start until start + timeInterval if i < 86400)
-          for (cary <- carList(i) if cary != car)
-            if (car < cary)
-              ret.append((part, car, cary))
-            else
-              ret.append((part, cary, car))
-      })
+      if (arr.size < 100000) {
+        val offset = (part * 86400).toLong + sp
+        val carList = new Array[ArrayBuffer[Int]](86400)
+        for (i <- 0 until 86400)
+          carList(i) = new ArrayBuffer[Int]
+        arr.foreach(v => {
+          val (car, ts) = v
+          carList((ts - offset).toInt).append(car)
+        })
+        arr.foreach(v => {
+          val (car, ts) = v
+          var start = (ts - offset).toInt
+          for (i <- start until start + timeInterval if i < 86400)
+            for (cary <- carList(i) if cary != car)
+              if (car < cary)
+                ret.append((part, car, cary))
+              else
+                ret.append((part, cary, car))
+        })
+      }
       ret
     }).map(word => (word, 1))
       .reduceByKey(_ + _, numPartitions = 200)
