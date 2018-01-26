@@ -27,7 +27,14 @@ g++ check.cc -o check -g -Wall -std=c++11 -mcmodel=large -pthread
 ## 运行
 对Spark版本
 ```
-../spark-2.0.0/bin/spark-submit --class "CompCar" --executor-cores 5 --num-executors 4 --executor-memory 14G --driver-memory 16G --master spark://your-master target/compcar_2.11-0.1.jar hdfs:///compcar/day/day-1.csv
+spark-2.0.0/bin/spark-submit \
+		--class "CompCar" \
+		--executor-cores 5 \
+        --num-executors 4 \
+        --executor-memory 14G \
+        --driver-memory 16G \
+        --master spark://your-master target/compcar_2.11-0.1.jar \
+        hdfs:///compcar/day/day-1.csv
 ```
 这里我们集群配置是有10台机器，其中9台worker，每台64GB内存，24线程
 
@@ -87,7 +94,7 @@ _以上都是方法大致描述，具体实现细节还要进一步参见代码�
 
 1. 把卡阈值的方法应用到之前Spark版本代码上
 2. CXX版本代码是单线程的，可以改成多线程，简单的方法有直接用openmp或者自己起thread，至于为什么我没改，一个原因是我把大部分时间花在尽力优化单线程版本效率和正确性上，这波做完之后有别的事情就不想做了，另一个原因是在这种场景下，多线程会大大破坏内存访问的局部性，所以很有可能吃力不讨好
-3. 单机上用多线程会破坏locality，但可以放到多机上做，最后合并结果传输的数据量很小，这个方法很值得一试（最近在折腾[ps-lite](https://github.com/dmlc/ps-lite)，可以直接套用，相当于只要一次迭代）
+3. 单机上用多线程会破坏locality，但可以放到多机上做，最后合并结果传输的数据量很小，这个方法很值得一试
 4. 尝试spark-sql或者分布式关系型数据库如TiDB（我sql都写好了）
 
 ## Acknowledgement
